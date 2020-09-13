@@ -98,13 +98,13 @@ df_govRevA_S_real  <- read_excel(paste0(dir_data_raw, 'taxCensusAnnual/Rev_urban
 df_govRevA_L_real  <- read_excel(paste0(dir_data_raw, 'taxCensusAnnual/Rev_urban_L_tot_real.xlsx'),  skip = 3)
 
 
-df_govRevA_SL_nom
-df_govRevA_S_nom
-df_govRevA_L_nom
-
-df_govRevA_SL_real
-df_govRevA_S_real
-df_govRevA_L_real
+# df_govRevA_SL_nom
+# df_govRevA_S_nom
+# df_govRevA_L_nom
+# 
+# df_govRevA_SL_real
+# df_govRevA_S_real
+# df_govRevA_L_real
 
 
 
@@ -142,11 +142,11 @@ df_govRevA_real <-
 						df_govRevA_L_real) %>% 
 	mutate(nomReal = "real")
 
-df_govRevA_nom
-df_govRevA_real
+#df_govRevA_nom
+#df_govRevA_real$state %>% unique()
 
 # Index data frame 1: Full state names and abbreviations 
-df_us_states <- tibble(state = c(state.name, "District of Columbia", "United States"), state_abb = c(state.abb, "DC", "US"))
+df_us_states <- tibble(state = c(state.name, "DC", "United States"), state_abb = c(state.abb, "DC", "US"))
 # x <- data.frame(df_govRevA_nom$State %>% unique %>% sort, us_states$state %>% sort)
 # identical(x[[1]], x[[2]])
 
@@ -175,13 +175,13 @@ df_govRevA_nom %<>%
 	left_join(df_us_states) %>% 
 	left_join(df_vars) %>% 
 	select(state,state_abb, type, nomReal, year = Year, varcode, varname, value, vardesc)
-df_govRevA_nom
+#df_govRevA_nom
 
 df_govRevA_real %<>% 
 	left_join(df_us_states) %>% 
 	left_join(df_vars) %>% 
 	select(state,state_abb, type, nomReal, year = Year, varcode, varname, value, vardesc)
-df_govRevA_real
+#df_govRevA_real$state_abb
 
 
 
@@ -192,8 +192,6 @@ df_govRevA_real
 
 # source: https://www.census.gov/programs-surveys/qtax.html
 # non-digitized data before 1994: https://www.census.gov/programs-surveys/qtax/data/tables.All.html 
-
-
 
 
 # Define data range:
@@ -273,24 +271,23 @@ df_govRevQ <-
 # df_govRevQ %>% spread(varname, value)
 
 
-ls_govRev <- list(
+ls_govRev_raw <- list(
 	df_govRevA_nom  = df_govRevA_nom,
 	df_govRevA_real = df_govRevA_real,
 	
-	df_govRevQ = df_govRevQ,
+	df_govRevQ = df_govRevQ
 	
-	df_us_states = df_us_states
+	# df_us_states = df_us_states
 )
 
 
-save(ls_govRev,
+save(ls_govRev_raw,
 	#    df_govRevA_nom,
 	#    df_govRevA_real,
 	#    
 	#    df_govRevQ,
 	# 	 
 	# 	 df_us_states,
-		 
 		 file = paste0(dir_data_out, "dataRaw_govRev.RData"))
 
 

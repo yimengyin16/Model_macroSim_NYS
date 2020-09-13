@@ -53,7 +53,7 @@ df_us_states <- tibble(state = c(state.name, "District of Columbia", "United Sta
 # Major economic variables
 
 FRED_vars <- c(
-  "GDPC1",           # Quarterly, Seasonally adjusted GDP level, billion
+  "GDPC1",           # Quarterly, Seasonally adjusted GDP level,  billion, real (chained 2012 dollor)
   
   "A191RL1Q225SBEA", # Quarterly, seasonally adjusted GDP growth, annual rate
   "TB3MS",           # 3-Month Treasury-bill: secondary market rate, monthly
@@ -87,7 +87,7 @@ df_FRED %<>%
 	select(year, month, yearMon, everything(), -Date) %>% 
 	rename(
 		     GDP = GDPC1, 
-				 GDP_growth = A191RL1Q225SBEA,
+				 GDP_BEAgrowth = A191RL1Q225SBEA,
 				 TBill3m  = TB3MS,
 				 TBond2y  = GS2,
 				 Tbond10y = GS10,
@@ -142,11 +142,11 @@ df_FRED  %<>% group_by(year) %>%
 			month %in% 7:9   ~ as.numeric(GDP[ 7]),
 			month %in% 10:12 ~ as.numeric(GDP[ 10])
 	),
-  	GDP_growth = case_when(
-			month %in% 1:3   ~ GDP_growth[1],
-			month %in% 4:6   ~ GDP_growth[4],
-			month %in% 7:9   ~ GDP_growth[7],
-			month %in% 10:12 ~ GDP_growth[10]
+  	GDP_BEAgrowth = case_when(
+			month %in% 1:3   ~ GDP_BEAgrowth[1],
+			month %in% 4:6   ~ GDP_BEAgrowth[4],
+			month %in% 7:9   ~ GDP_BEAgrowth[7],
+			month %in% 10:12 ~ GDP_BEAgrowth[10]
 	),
 	
 	  GDPdeflator = case_when(
@@ -290,7 +290,7 @@ tail(df_yahoo)
 #**********************************************************************
 
 
-ls_financial <- list(
+ls_financial_raw <- list(
 	df_FRED = df_FRED, 
 	df_SBBI_AppendA = df_SBBI_AppendA,
 	df_SBBI_AppendB = df_SBBI_AppendB, 
@@ -298,7 +298,7 @@ ls_financial <- list(
 )
 
 
-save(ls_financial,
+save(ls_financial_raw,
 		 file = paste0(dir_data_out, "dataRaw_financial.RData"))
 
 

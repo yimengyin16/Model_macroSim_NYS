@@ -46,40 +46,40 @@ df_us_states <- tibble(state = c(state.name, "District of Columbia", "United Sta
  # https://fred.stlouisfed.org/series/NYRGSP
 
 
-varnames_NGSP <- paste0(setdiff(df_us_states$state_abb, "US"), "NGSP")
-varnames_RGSP <- paste0(setdiff(df_us_states$state_abb, "US"), "RGSP")
-
-
-# loading data through Quandl (2000 calls per 10 mins). 
-df_NGSP_raw <- Quandl(paste0("FRED/", varnames_NGSP), order = "asc")
-df_RGSP_raw <- Quandl(paste0("FRED/", varnames_RGSP), order = "asc")
-
-
-
-df_NGSP <- 
-	df_NGSP_raw %>% 
-	gather(var, NGSP, -Date) %>% 
-	mutate(var = str_extract(var, "\\w{2}NGSP"),
-				 state_abb = str_replace(var, "NGSP", ""),
-				 year = as.Date(Date) %>% year,
-				 Date = NULL,
-				 var  = NULL) %>% 
-	select(state_abb, year, NGSP)
-df_NGSP 
- 
-df_RGSP <- 
-	df_RGSP_raw %>% 
-	gather(var, RGSP, -Date) %>% 
-	mutate(var = str_extract(var, "\\w{2}RGSP"),
-				 state_abb = str_replace(var, "RGSP", ""),
-				 year = as.Date(Date) %>% year,
-				 Date = NULL,
-				 var  = NULL) %>% 
-	select(state_abb, year, RGSP)
-df_RGSP
-
-df_GSP_FRED <- left_join(df_NGSP, df_RGSP)
-df_GSP_FRED 	
+# varnames_NGSP <- paste0(setdiff(df_us_states$state_abb, "US"), "NGSP")
+# varnames_RGSP <- paste0(setdiff(df_us_states$state_abb, "US"), "RGSP")
+# 
+# 
+# # loading data through Quandl (2000 calls per 10 mins). 
+# df_NGSP_raw <- Quandl(paste0("FRED/", varnames_NGSP), order = "asc")
+# df_RGSP_raw <- Quandl(paste0("FRED/", varnames_RGSP), order = "asc")
+# 
+# 
+# 
+# df_NGSP <- 
+# 	df_NGSP_raw %>% 
+# 	gather(var, NGSP, -Date) %>% 
+# 	mutate(var = str_extract(var, "\\w{2}NGSP"),
+# 				 state_abb = str_replace(var, "NGSP", ""),
+# 				 year = as.Date(Date) %>% year,
+# 				 Date = NULL,
+# 				 var  = NULL) %>% 
+# 	select(state_abb, year, NGSP)
+# df_NGSP 
+#  
+# df_RGSP <- 
+# 	df_RGSP_raw %>% 
+# 	gather(var, RGSP, -Date) %>% 
+# 	mutate(var = str_extract(var, "\\w{2}RGSP"),
+# 				 state_abb = str_replace(var, "RGSP", ""),
+# 				 year = as.Date(Date) %>% year,
+# 				 Date = NULL,
+# 				 var  = NULL) %>% 
+# 	select(state_abb, year, RGSP)
+# df_RGSP
+# 
+# df_GSP_FRED <- left_join(df_NGSP, df_RGSP)
+# df_GSP_FRED 	
 
 
 #**********************************************************************
@@ -211,7 +211,7 @@ df_coincIdx %<>%
 #                   State coincident index                         ####
 #**********************************************************************
 
-ls_GSP_BEA <- 
+ls_GSP_BEA_raw <- 
 	list(
 		df_NGSP_BEA = df_NGSP_BEA,
 		df_RGSP_BEA = df_RGSP_BEA,
@@ -219,7 +219,7 @@ ls_GSP_BEA <-
 		df_coincIdx = df_coincIdx
 	)
 
-save(ls_GSP_BEA,
+save(ls_GSP_BEA_raw,
 		 file = paste0(dir_data_out, "dataRaw_GSP_BEA.RData"))
 
 
