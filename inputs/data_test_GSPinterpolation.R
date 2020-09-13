@@ -222,9 +222,39 @@ select(GDP_target_qtr, year, qtr, GDP_growth) %>%
 #  2.2  Compare qarterly y-on-y growth of official GDP and interpolated growth   ####
 #*******************************************************************************
 
+df1 <- 
+ls_financial$df_financial_q %>% 
+	left_join(df_monthQtr) %>% 
+	select(year, month, qtr, GDP) %>% 
+	filter(year >=1986, year<2020) %>% 
+	group_by(qtr) %>% 
+	mutate(GDP_growth_YonY = GDP / lag(GDP) - 1)
 
 
 
+df2 <- 
+	ls_GSP_BEA_raw$df_coincIdx %>% 
+	filter(state_abb == "US", year >= 1986) %>% 
+	left_join(df_monthQtr, by = "month") %>% 
+	group_by(year, qtr) %>% 
+	summarise(cIdx = mean(value)) %>% 
+	group_by(qtr) %>%
+	mutate(cIdx_growth_YonY = cIdx / lag(cIdx) - 1)
+
+
+df <- 
+	left_join(df1, df2) %>% 
+	select(year, qtr, GDP_growth_YonY, cIdx_growth_YonY) %>% 
+  mutate(yearQtr = year + (qtr - 1) /4) %>% 
+	ungroup %>% 
+	select(-year, -qtr) 
+
+
+df %>% 
+	gather(type, value, -yearQtr) %>% 
+	qplot(x = yearQtr, y = value*100, color = type, geom = c("line", "point") , data=.) + 
+	scale_x_continuous(breaks = seq(1950, 2050, 2)) + 
+	ggtitle("Year-on-year growth: GDP and coincident index")
 
 
 

@@ -42,10 +42,10 @@ source("inputs/data_read_financial.R")
 
 
 #*******************************************************************************
-#                    Reading data files                                     ####
+#                    Preliminary processing of data                         ####
 #*******************************************************************************
 
-
+source("inputs/data_proc.R")
 
 
 

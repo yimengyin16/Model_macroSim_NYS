@@ -106,6 +106,11 @@ dir_data_raw <- "inputs/data_proc/"
 dir_data_out <- "inputs/data_proc/"
 
 
+df_monthQtr <- 
+  tibble(month = 1:12,
+         qtr   = rep(1:4, each = 3 ))
+df_monthQtr 
+
 
 #**********************************************************************
 #           1 Financial + US GDP data                   ####
@@ -196,6 +201,19 @@ df_financial %<>%
 df_financial_q  <- df_financial %>% filter(month %in% c(3, 6, 9, 12))
 df_financial_q2 <- df_financial %>% filter(month %in% c(1, 4, 7, 10))
 df_financial_y  <- df_financial %>% filter(month %in% 6)
+
+
+df_financial_y %<>% 
+  left_join(
+    df_financial %>% 
+      select(year, month, GDP) %>% 
+      group_by(year) %>% 
+      summarise(GDP_avg = mean(GDP), 
+                .groups = "drop"),
+    by = "year"
+    ) %>% 
+  mutate(GDP_mon6 = GDP)
+
 
 
 #**********************************************************************
@@ -325,7 +343,9 @@ ls_govRev_raw$df_govRevA_real %>%
 
 
 df_govRev_y <- 
-  full_join(df_govRev_y_real, df_govRev_y_nom, by = c("state_abb", "year"))
+  full_join(df_govRev_y_real, 
+            df_govRev_y_nom, 
+            by = c("state_abb", "year"))
 
 
 #**********************************************************************
@@ -406,12 +426,13 @@ df_govRev_q <-
 #                   2.5 Saving Data                               ####
 #**********************************************************************
 
-# save(df_RevGSP, 
-#      df_us_states,
-#      file =  paste0(dir_data_out, "Data_RevGSP.RData"))
+ls_govRev <- list(
+  df_govRev_y = df_govRev_y,
+  df_govRev_q = df_govRev_q
+)
 
-
-
+save(ls_govRev,
+     file = paste0(dir_data_out, "dataProc_govRev.RData"))
 
 
 #**********************************************************************
@@ -427,8 +448,7 @@ df_govRev_q <-
 #  2. quarterly GSP level index:
 #       - Annual growth follows BEA RGSP annual growth 
 #       - adjusting quarterly growth follows coincident index
-
-#       - construct quarterly GSP
+#       - construct quarterly GSP (index)
 
 
 
@@ -445,16 +465,11 @@ df_govRev_q <-
 
 
 
-
-
 #**********************************************************************
 #                3.1  loading data                       ####
 #**********************************************************************
 
 load(paste0(dir_data_raw, "dataRaw_GSP_BEA.RData"))
-
-ls_GSP_BEA_raw$df_NGSP_BEA$state %>% unique
-
 
 # df_GSP_FRED
 # df_RGSP_BEA
@@ -465,32 +480,105 @@ ls_GSP_BEA_raw$df_NGSP_BEA$state %>% unique
 #                3.2  Annual GSP data                              ####
 #**********************************************************************
 
+#  GSP variables
+#     - RGSP_SIC:   From BEA,  1963-1997, based on SIC
+#     - RGSP_NAICS: From BEA,  1997-2016, based on NAICS
+
+
 df_GSP_y <-
   full_join(ls_GSP_BEA_raw$df_RGSP_BEA,
             ls_GSP_BEA_raw$df_NGSP_BEA,
             by = c("state", "state_abb", "year")
             )
 
-#  GSP variables
-#     - RGSP_SIC:   From BEA,  1963-1997, based on SIC
-#     - RGSP_NAICS: From BEA,  1997-2016, based on NAICS
+# Annual GDP growth rate, combining SIC and NAICS series 
+df_GSP_y %<>% 
+  mutate(RGSP_SIC_growth   =  RGSP_SIC/lag(RGSP_SIC) - 1,
+         RGSP_NAICS_growth =  RGSP_NAICS/lag(RGSP_NAICS) - 1,
+         RGSP_growth = ifelse(year <1998, RGSP_SIC_growth, RGSP_NAICS_growth),
+         
+         NGSP_SIC_growth   =  NGSP_SIC/lag(NGSP_SIC) - 1,
+         NGSP_NAICS_growth =  NGSP_NAICS/lag(NGSP_NAICS) - 1,
+         NGSP_growth = ifelse(year <1998, NGSP_SIC_growth, NGSP_NAICS_growth)
+         ) %>% 
+  select(-RGSP_SIC_growth, -RGSP_NAICS_growth, -NGSP_SIC_growth, -NGSP_NAICS_growth)
 
-df_GSP_y
-
-
-# Variables
-#  Indices: state, state_abb, year
-#  GSP variables
-#     - RGSP_SIC:   From BEA,  1963-1997, based on SIC
-#     - RGSP_NAICS: From BEA,  1997-2016, based on NAICS
-#     - NGSP:       From FRED, 1997-2016
 
 
 #**********************************************************************
-#                3.3  GSP data                              ####
+#         3.3  Quarterly GSP data: interpolation            ####
 #**********************************************************************
 
-ls_GSP_BEA_raw$df_coincIdx
+## 1. Adjustment factor for coincident index (1979~)
+# adj_fct = [(1+annual GSP growth)/(1+annual index growth)]^(1/4)
+# For now annual growth of C-index calculated using annual averages
+
+# index 1977~2019
+cIdx_annual_avg <- 
+  ls_GSP_BEA_raw$df_coincIdx %>% 
+  group_by(state_abb, year) %>% 
+  summarise(cIdx = mean(value), .groups = "drop") %>% 
+  mutate(cIdx_growth = cIdx/lag(cIdx) - 1)
+
+# real gsp 1988-2016
+#df_GSP_y
+
+df_adjFactor <- 
+  left_join(df_GSP_y, 
+            cIdx_annual_avg,
+            by = c("state_abb", "year")) %>% 
+  mutate(adj_fct = ((1 + RGSP_growth) / (1 + cIdx_growth))^(1/4)  ) %>% 
+  select(state_abb, year, adj_fct)
+#df_adjFactor
+
+
+
+## 2. Adjusting index grwoth
+
+cIdx_qtr <- 
+  ls_GSP_BEA_raw$df_coincIdx %>% 
+  left_join(df_monthQtr, by = "month") %>% 
+  group_by(state_abb, year, qtr) %>% 
+  summarise(cIdx = mean(value)) %>% 
+  ungroup %>% 
+  mutate(cIdx_growth = cIdx / lag(cIdx) - 1)
+
+
+cIdx_qtr %<>% 
+  left_join(select(df_adjFactor, state_abb, year, adj_fct), by = c("state_abb", "year")) %>% 
+  mutate(cIdx_growth_adj = cIdx_growth * adj_fct)
+
+
+## 3. Constructing RGSP index based on adjusted c-index
+ # Use year 1988 as the base year and set the value to 100 (the same for all states)
+ # Apply the adjusted c-index growth to construct the RGSP index for all states
+ # Then we can calculate quarterly year-on-year growth of RGSP
+
+df_GSP_q <- 
+  cIdx_qtr %>% 
+  filter(year >= 1988) %>% 
+  group_by(state_abb) %>% 
+  mutate(yearQtr = year + (qtr - 1)/4) %>% 
+  arrange(state_abb, yearQtr) %>%  # just for safety
+  mutate(RGSP_idx = 100 * cumprod(1 + ifelse(yearQtr == min(yearQtr), 0, cIdx_growth_adj))) %>% 
+  select(state_abb, year, qtr, cIdx, cIdx_growth, adj_fct, cIdx_growth_adj, RGSP_idx)
+
+
+
+
+#**********************************************************************
+#         3.4 saving data            ####
+#**********************************************************************
+ls_GSP <- 
+  list(
+    df_GSP_y = df_GSP_y,
+    df_GSP_q = df_GSP_q
+  )
+
+
+save(ls_GSP,
+     file = paste0(dir_data_out, "dataProc_GSP.RData"))
+
 
 
 
