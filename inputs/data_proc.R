@@ -17,10 +17,10 @@
 #*******************************************************************************
 
 ## Key points to make besides estimating parameters for simulation
-#   - NY tax revnues are more volatile than natinal average/other sales-tax states,
+#   - NY tax revnues are more volatile than national average/other sales-tax states,
 #      this is partly due to higher impact of capital gains, and this trend is likely 
 #      to sustain. 
-#   - NY GDP is also more volatile/cyclical than national total, and this is partly
+#   - Less important: NY GDP is also more volatile/cyclical than national total, and this is partly
 #      due to a higher dependency on financial sector (what if excluding NYC?). 
 
 
@@ -53,7 +53,10 @@
 
 
 # Model 3: GDP and tax revenues, quarterly model
-#  - National level, NY only, state panel
+#  - sub-models:
+#     - US, 
+#     - NY, 
+#     - state panel
 #  - Data: quarterly national GDP 
 #          quarterly state GDP
 #          quarterly national tax revenue by type
@@ -198,11 +201,19 @@ df_financial %<>%
 #         1.3       Construct quarterly and annual data            ####
 #**********************************************************************
 
+## Quarterly data: third-month value
 df_financial_q  <- df_financial %>% filter(month %in% c(3, 6, 9, 12))
+## Quarterly data: first-month value
 df_financial_q2 <- df_financial %>% filter(month %in% c(1, 4, 7, 10))
+
+
+
+## Annual value
 df_financial_y  <- df_financial %>% filter(month %in% 6)
 
-
+# Annual GDP values constructed with different methods
+ # GDP and GDP_mon6: GDP in June
+ # GDP_avg: Quarterly average of GDP
 df_financial_y %<>% 
   left_join(
     df_financial %>% 
@@ -296,8 +307,8 @@ ls_financial <- list(
 )
   
 
-save(ls_financial,
-     file =  paste0(dir_data_out, "dataProc_financial.RData"))
+saveRDS(ls_financial,
+        file =  paste0(dir_data_out, "dataProc_financial.rds"))
 
 
 
@@ -431,8 +442,8 @@ ls_govRev <- list(
   df_govRev_q = df_govRev_q
 )
 
-save(ls_govRev,
-     file = paste0(dir_data_out, "dataProc_govRev.RData"))
+saveRDS(ls_govRev,
+         file = paste0(dir_data_out, "dataProc_govRev.rds"))
 
 
 #**********************************************************************
@@ -513,16 +524,15 @@ df_GSP_y %<>%
 # adj_fct = [(1+annual GSP growth)/(1+annual index growth)]^(1/4)
 # For now annual growth of C-index calculated using annual averages
 
-# index 1977~2019
+# c-index and growth 1977~2019
 cIdx_annual_avg <- 
   ls_GSP_BEA_raw$df_coincIdx %>% 
   group_by(state_abb, year) %>% 
   summarise(cIdx = mean(value), .groups = "drop") %>% 
   mutate(cIdx_growth = cIdx/lag(cIdx) - 1)
 
-# real gsp 1988-2016
-#df_GSP_y
-
+# merge annual growth of c-index with annual growth of real gsp 1988-2016
+# then calculate adjustment factor
 df_adjFactor <- 
   left_join(df_GSP_y, 
             cIdx_annual_avg,
@@ -534,6 +544,9 @@ df_adjFactor <-
 
 
 ## 2. Adjusting index grwoth
+# - The original c-index data are monthly. 
+# - Converting to quarterly data by taking quarterly average
+# - Then apply adjustment factor constructed above
 
 cIdx_qtr <- 
   ls_GSP_BEA_raw$df_coincIdx %>% 
@@ -542,7 +555,6 @@ cIdx_qtr <-
   summarise(cIdx = mean(value)) %>% 
   ungroup %>% 
   mutate(cIdx_growth = cIdx / lag(cIdx) - 1)
-
 
 cIdx_qtr %<>% 
   left_join(select(df_adjFactor, state_abb, year, adj_fct), by = c("state_abb", "year")) %>% 
@@ -564,6 +576,13 @@ df_GSP_q <-
   select(state_abb, year, qtr, cIdx, cIdx_growth, adj_fct, cIdx_growth_adj, RGSP_idx)
 
 
+## Notes on variables
+# cIdx          Coincident index, level, (quarterly avg of monthly values) 
+# cIdx_growth   qtr-on-qtr growth rates of cIdx
+# adj_fct       adjustment factors for cIdx_growth
+# 
+# cIdx_growth_adj:  Adjusted qtr-on-qtr growth rates of cIdx
+# RGSP_idx:         Quarterly RGSP constructed based on cIdx_growth_adj, assuming 1988 value = 100
 
 
 #**********************************************************************
@@ -576,11 +595,8 @@ ls_GSP <-
   )
 
 
-save(ls_GSP,
-     file = paste0(dir_data_out, "dataProc_GSP.RData"))
-
-
-
+saveRDS(ls_GSP,
+        file = paste0(dir_data_out, "dataProc_GSP.rds"))
 
 
 
