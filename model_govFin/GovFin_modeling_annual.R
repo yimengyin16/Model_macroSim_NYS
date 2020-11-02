@@ -214,8 +214,12 @@ taxVars <- c(
 df_govRev <- 
   ls_govRev$df_govRev_y %>% 
 	select(state_abb, year, any_of(taxVars)) %>% 
-	mutate(tax_nonPITsales_real_state = tax_tot_real_state - tax_indivIncome_real_state - tax_sales_tot_real_state,
-				 tax_nonPITsales_nom_state  = tax_tot_nom_state  - tax_indivIncome_nom_state - tax_sales_tot_nom_state)
+	mutate(tax_nonPITsalestot_real_state = tax_tot_real_state - tax_indivIncome_real_state - tax_sales_tot_real_state,
+				 tax_nonPITsalestot_nom_state  = tax_tot_nom_state  - tax_indivIncome_nom_state - tax_sales_tot_nom_state,
+				 
+				 tax_nonPITsalesgen_real_state = tax_tot_real_state - tax_indivIncome_real_state - tax_sales_gen_real_state,
+				 tax_nonPITsalesgen_nom_state  = tax_tot_nom_state  - tax_indivIncome_nom_state - tax_sales_gen_nom_state
+				 )
 
 
 # State level GDP, SIC and NAICS
@@ -271,11 +275,12 @@ df_revGDP_dlreal <-
 	df_revGDP_real %>% 
 	group_by(state_abb) %>% 
 	mutate(across(c(-year, -GDPCTPI), ~log(.x/lag(.x)))) %>% # across should not include grouping vars
-  rename_with( ~paste0("dl", .x), !c(year, GDPCTPI)) 
+  rename_with( ~paste0("dl", .x), !c(state_abb, year, GDPCTPI)) 
+
 
 # concatenate SIC and NAICS GSP growth
 df_revGDP_dlreal %<>%
-	mutate(dlGSPc = ifelse(year < 1997, dlGSP_NAICS, dlGSP_SIC))
+	mutate(dlGSPc = ifelse(year <= 1997, dlGSP_SIC, dlGSP_NAICS))
 	
 # df_revGDP_dlreal
 
@@ -311,13 +316,13 @@ df_revGDP_dlnom <-
 	df_revGDP_nom %>% 
 	group_by(state_abb) %>% 
 	mutate(across(c(-year, -GDPCTPI), ~log(.x/lag(.x)))) %>% # across should not include grouping vars
-	rename_with( ~paste0("dl", .x), !c(year, GDPCTPI))
+	rename_with( ~paste0("dl", .x), !c(state_abb, year, GDPCTPI))
 #df_revGDP_dlnom
 
 
 # concatenate SIC and NAICS GSP growth
 df_revGDP_dlnom %<>%
-	mutate(dlGSPc = ifelse(year < 1997, dlGSP_NAICS, dlGSP_SIC))
+	mutate(dlGSPc = ifelse(year <= 1997, dlGSP_SIC, dlGSP_NAICS))
 
 
 
@@ -392,7 +397,7 @@ df_dlSBBI <- df_SBBI %>%
 
 
 
-# 2. Captial gain / losses data for states (From Don)
+# 2. Captial gain / losses data for states (From Don), national level
 # level in $billions
 rlzCapGains_nom <- read_excel(paste0(dir_inputs_raw, "/NationalCapitalGains_yy.xlsx"), sheet = "CapGains", range = c("A5:C67"))
 names(rlzCapGains_nom) <- c("year", "capgains", "capgains_chg") 
@@ -400,8 +405,6 @@ rlzCapGains_nom %<>% mutate(capgains = capgains * 1e6)
 
 rlzCapGains_nom_rev <- read_excel(paste0(dir_inputs_raw, "/NationalCapitalGains_yy.xlsx"), sheet = "CapGains_rev", range = c("A8:E30"))[,-(2:3)]
 # rlzCapGains_nom_rev
-
-
 
 
 # 3. combine data 
@@ -464,15 +467,234 @@ df_returns %<>%
 
 
 
-#**********************************************************************
-#             Data preparation 3: Combine data               ####
-#**********************************************************************
+#*******************************************************************************
+#             Data preparation 3: Combine data                              ####
+#*******************************************************************************
 
 df_revGDP_real    %<>% left_join(df_returns, by = "year") 
 df_revGDP_dlreal  %<>% left_join(df_returns, by = "year")
 
 df_revGDP_nom     %<>% left_join(df_returns, by = "year")
 df_revGDP_dlnom   %<>% left_join(df_returns, by = "year")
+
+
+
+#*******************************************************************************
+#             Data preparation 4: Decription of variables                   ####
+#*******************************************************************************
+
+
+## Inflation
+#'  - GDPCTPI:         GDP chain-type price index, from FRED.
+#'  - GDPdeflator:     GDP deflator, from FRED. Very close to GDP chain-type price index.
+#'  - Inflation_Index: SBBI inflation index 
+
+##' National GDP
+#'  - GDP_mon6: Quarterly national GDP of the 3rd quarter, annualized value
+#'  - GDP_avg:  Average of all quarterly national GDP in a calendar year, annualized value
+
+##' State GDP
+#'   - GSP_SIC:   BEA annual state GDP, up to 1997 
+#'   - GSP_NAICS: BEA annual state GDP, in and after 1997
+#    - dlGSPc:    Concatenated BEA GSP growths, SIC: 1977-1997, NAICS: 1998 to 2015
+
+##' State coincidence index
+#'   - cIdx_qtr3: Quarterly coincidence index the 3rd quarter, 
+#'   - cIdx_avg:  Average of all quarterly coincidence index in a calendar year
+
+
+##' State tax revenue
+#    - tax_tot            'Total tax revenue',
+#    - tax_sales_tot',    'Tot Sales & Gr Rec Tax',
+#    - tax_sales_gen',    'Total Gen Sales Tax (T09)',
+#    - tax_sales_select', 'Total select Sales Tax',
+#    - tax_indivIncome',  'Individual Income Tax (T40)',
+#    - tax_nonPITsales,   'Non-PIT, non-sales tax revenue, generated var'
+
+#    - tax_corpIncome',   'Corp Net Income Tax',
+#    - chgs_Misc',        'Tot Chgs and Misc Rev'
+#    - tax_property',     'Property Taxes',
+
+
+
+##' Financial variables
+#'   - LCapStock_TRI,   # SBBI, large cap stock total return index (SP500 total return index)
+#'   - LCapStock_CAI,   # SBBI, large cap stock capital appreciation index (SP500 price index)
+#'   - CBond_TRI,       # SBBI, corp bond total return
+#'   - LTGBond_TRI,     # SBBI, long-term gov bond total return (20y?)
+#'   - MTGBond_TRI,     # SBBI, medium-term gov bond total return
+#'   - LTGBond_Yield    # SBBI, long-term gov bond yield
+#' Notes:
+#'   -  "_real": adjusted by GDPCTPI if ending with "_real". Nominal (original) if not. 
+
+
+##' Capital gains related
+#'   - capgains:     National total, nominal total realized capital gains - LOSSES NOT SUBTRACTED
+#'   - capgains_chg: Annual changes of capgains
+#'   - tax_gains:    Captial gains tax receipts 
+#'   - tax_gains_chg
+#' Notes:
+#'   - Current source: Don's document. 
+
+
+#*******************************************************************************
+#          Descriptive analysis 1: tax revenue, GDP, US and NY              ####
+#*******************************************************************************
+
+##' Outline
+#'
+#' 1. Show the correlation of GDP growth and total tax revenue growth US and NY
+#'     
+#' 2. How volatile is the NY GDP, and how does it compare to the US total?
+#' 
+#' 3. How volatile is the tax revenue in NY, and how is it compared to the US total 
+#'    and other states?
+#'    - This will not answer the question that if NY tax revenue is more responsive to 
+#'      economic conditions, which will be examined by regression analysis. 
+#'      
+#' 4. Composition of tax revenue
+#'    - PIT, sales, and other for US and NY tax revenues
+#'            
+#' 5. Volatility of pension costs relative to tax revenue. 
+#'    -  Compare US and NY, does NY more volatile than US? 
+
+
+
+##' 1. Show the correlation of GDP growth and total tax revenue growth: US and NY
+
+# Notes:
+#   - growth of total GSP is used for US total, which is very close to US GDP growth
+
+# GDP and total tax revenue
+df_revGDP_dlreal %>% 
+	select(state = state_abb, year, dlGSPc, dltax_tot) %>% 
+	filter(state %in% c("US", "CA")) %>% 
+	gather(variable, value, -state, -year) %>% 
+	ggplot(aes(x = year, y = value, color = variable)) + theme_bw() + 
+	facet_grid(state ~. ) +
+	geom_line() + 
+	geom_point() + 
+	geom_hline(yintercept = 0, linetype = 2) + 
+	scale_x_continuous(breaks = seq(1950, 2020, 5))
+
+# For comparison:
+state_select <- c("NJ", "MA", "VA","CA", "TX", "FL", "WA")
+df_revGDP_dlreal %>% 
+	select(state = state_abb, year, dlGSPc, dltax_tot) %>% 
+	filter(state %in% state_select ) %>% 
+	mutate(state = factor(state, levels = state_select  )) %>% 
+	gather(variable, value, -state, -year) %>% 
+	ggplot(aes(x = year, y = value, color = variable)) + theme_bw() + 
+	facet_grid(state ~. ) +
+	geom_line() + 
+	geom_point() + 
+	geom_hline(yintercept = 0, linetype = 2) + 
+	scale_x_continuous(breaks = seq(1950, 2020, 5))
+
+
+# GDP and PIT
+df_revGDP_dlreal %>% 
+	select(state = state_abb, year, dlGSPc, dltax_indivIncome) %>% 
+	filter(state %in% c("US", "NY")) %>% 
+	gather(variable, value, -state, -year) %>% 
+	ggplot(aes(x = year, y = value, color = variable)) + theme_bw() + 
+	facet_grid(state ~. )+
+	geom_line() + 
+	geom_point() + 
+	geom_hline(yintercept = 0, linetype = 2)+
+	scale_x_continuous(breaks = seq(1950, 2020, 5))
+
+# GDP and general sales tax
+df_revGDP_dlreal %>% 
+	select(state = state_abb, year, dlGSPc, dltax_sales_gen) %>% 
+	filter(state %in% c("US", "NY")) %>% 
+	gather(variable, value, -state, -year) %>% 
+	ggplot(aes(x = year, y = value, color = variable)) + theme_bw() + 
+	facet_grid(state ~. )+
+	geom_line() + 
+	geom_point() + 
+	geom_hline(yintercept = 0, linetype = 2)+
+	scale_x_continuous(breaks = seq(1950, 2020, 5))
+
+
+# Non PIT and non general sales tax
+df_revGDP_dlreal %>% 
+	select(state = state_abb, year, dlGSPc, dltax_nonPITsalesgen) %>% 
+	filter(state %in% c("US", "NY")) %>% 
+	gather(variable, value, -state, -year) %>% 
+	ggplot(aes(x = year, y = value, color = variable)) + theme_bw() + 
+	facet_grid(state ~. )+
+	geom_line() + 
+	geom_point() + 
+	geom_hline(yintercept = 0, linetype = 2)+
+	scale_x_continuous(breaks = seq(1950, 2020, 5))
+
+	
+
+##'2 and 3.  Comparing volatility of GDP and tax revenue of NY and US total
+df_revGDP_dlreal %>% 
+	select(state = state_abb, year, dlGSPc,  dlcIdx_avg, dltax_tot) %>% 
+	filter(state %in% c("NY", "US")) %>% 
+	gather(variable, value, -state, -year) %>% 
+	ggplot(aes(x = year, y = value, color = state)) + theme_bw() + 
+	facet_grid(variable ~. )+
+	geom_line() + 
+	geom_point()
+
+
+
+
+##' 4. Composition of tax revenue 
+#'   - PIT, sales_gen, sales_sel, other
+#'   - share of total tax revenue, nominal value, 
+
+df_revGDP_nom %>% 
+	# select(state = state_abb, year, tax_tot, tax_indivIncome, tax_sales_gen, tax_sales_sel, other = tax_nonPITsalestot) %>% 
+	mutate(pct_PIT      = tax_indivIncome / tax_tot,
+				 pct_salesGen = tax_sales_gen / tax_tot,
+				 pct_salesSel = tax_sales_sel / tax_tot,
+				 pct_salesTot = (tax_sales_gen + tax_sales_sel) / tax_tot,
+				 pct_other    = tax_nonPITsalestot / tax_tot
+				 ) %>% 
+	select(state = state_abb, year, 
+				 pct_PIT, 
+				 pct_salesTot,
+				 pct_salesGen, 
+				 pct_salesSel, 
+				 pct_other) %>% 
+	filter(state %in% c("NY", "US")) %>% 
+	gather(variable, value, -state, -year) %>% 
+	mutate(variable = factor(variable) %>% fct_inorder) %>% 
+	ggplot(aes(x = year, y = value, color = variable)) + theme_bw() + 
+	facet_grid(state ~. )+
+	geom_line() + 
+	geom_point()+
+	scale_y_continuous(breaks = seq(0,1, 0.1), labels = function(x) percent(x, accuracy = 1))+
+	scale_x_continuous(breaks = seq(1950, 2020, 5))
+
+
+
+## Pension costs and state tax revenue
+
+
+
+
+#*******************************************************************************
+# Descriptive analysis 2: Investment returns, capital gains and tax revenue ####
+#*******************************************************************************
+
+#' Correlation between stock returns, captial gains, and PIT
+#'    - check PIT capital gains PIT of US total and NY.
+#'    - check the shares of capital gain tax and PIT in total tax revenues for
+#'      US and NY
+#' 
+#' Shares of capital gain taxes, PIT in total tax revenues: US and NY          
+
+
+
+
+
+
 
 
 
